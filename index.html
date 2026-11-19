@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hidden Word</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: one narrow reading column. Controls on top, the passage as a ruled card, highlighter marks the active blank. */
+:root {
+  --paper: #f4f5f9;
+  --card: #ffffff;
+  --ink: #18203a;
+  --muted: #5d6682;
+  --rule: #e2e5ef;
+  --accent: #2f48d4;
+  --accent-ink: #ffffff;
+  --mark: #ffe25c;
+  --good: #1d7f55;
+  --warn: #b26f00;
+  --bad: #c3323c;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Literata", Georgia, "Times New Roman", serif;
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0f121b; --card: #171b27; --ink: #e8ebf4; --muted: #99a2bd; --rule: #272d3f;
+    --accent: #8fa2ff; --accent-ink: #0f121b; --mark: rgba(255, 214, 40, .32);
+    --good: #4fc58f; --warn: #e3a63b; --bad: #ff6b74; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0f121b; --card: #171b27; --ink: #e8ebf4; --muted: #99a2bd; --rule: #272d3f;
+  --accent: #8fa2ff; --accent-ink: #0f121b; --mark: rgba(255, 214, 40, .32);
+  --good: #4fc58f; --warn: #e3a63b; --bad: #ff6b74; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--font-display); font-size: 16px; line-height: 1.5;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 28px 18px 64px; display: grid; gap: 20px; }
+
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+h1 { font-size: 2.6rem; font-weight: 800; letter-spacing: -.03em; line-height: 1; margin: 0; text-wrap: balance; }
+h1 .hid { background: linear-gradient(transparent 55%, var(--mark) 55%, var(--mark) 92%, transparent 92%); padding: 0 .08em; }
+.tag { margin: 6px 0 0; color: var(--muted); font-family: var(--font-body); font-style: italic; font-size: .95rem; }
+
+button, .seg label { font: inherit; }
+.btn {
+  border: 1px solid var(--rule); background: var(--card); color: var(--ink);
+  padding: 8px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .92rem;
+}
+.btn:hover { border-color: var(--muted); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn:focus-visible, .seg input:focus-visible + span, input[type=range]:focus-visible, textarea:focus-visible, .text-in:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; }
+.seg { display: inline-flex; background: var(--card); border: 1px solid var(--rule); border-radius: 999px; padding: 3px; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; padding: 6px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: .92rem; color: var(--muted); }
+.seg input:checked + span { background: var(--ink); color: var(--paper); }
+
+.toggle { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 600; font-size: .92rem; }
+.toggle small { color: var(--muted); font-weight: 400; }
+.toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle .track { width: 38px; height: 22px; border-radius: 999px; background: var(--rule); position: relative; flex: none; transition: background .15s; }
+.toggle .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+.toggle input:checked + .track { background: var(--accent); }
+.toggle input:checked + .track::after { transform: translateX(16px); }
+.toggle input:focus-visible + .track { outline: 3px solid var(--accent); outline-offset: 2px; }
+.credit { display: grid; justify-items: center; gap: 2px; text-align: center; color: var(--muted); font-size: .9rem; padding-top: 18px; }
+.credit p { margin: 0; }
+.credit strong { color: var(--ink); font-weight: 600; }
+.credit .mark { width: 28px; height: 6px; border-radius: 3px; background: var(--mark); margin-bottom: 10px; }
+.subbar[hidden] { display: none; }
+.subbar { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; min-height: 40px; }
+.slider { display: flex; align-items: center; gap: 10px; flex: 1 1 260px; }
+.slider label { font-weight: 600; font-size: .92rem; white-space: nowrap; }
+.slider output { font-variant-numeric: tabular-nums; font-weight: 800; min-width: 3.2em; text-align: right; }
+input[type=range] { flex: 1; accent-color: var(--accent); }
+
+.levels { display: flex; gap: 6px; align-items: center; }
+.levels .lv { width: 34px; height: 8px; border-radius: 4px; background: var(--rule); }
+.levels .lv.done { background: var(--good); }
+.levels .lv.now { background: var(--accent); }
+.levels .lbl { font-weight: 600; font-size: .92rem; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.hearts { display: flex; gap: 4px; align-items: center; }
+.hearts svg { width: 18px; height: 18px; }
+.hearts .on { fill: var(--bad); }
+.hearts .off { fill: none; stroke: var(--muted); stroke-width: 2; }
+
+.card {
+  position: relative; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius);
+  padding: 22px 26px 26px;
+}
+.card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+.ref { font-weight: 800; font-size: 1.15rem; letter-spacing: -.01em; }
+.count { color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.bar { height: 4px; background: var(--rule); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+.bar i { display: block; height: 100%; width: 0; background: var(--good); transition: width .25s ease; }
+
+.passage {
+  font-family: var(--font-body); font-size: 1.22rem; line-height: 2.25rem;
+  word-wrap: break-word;
+}
+.passage .para { display: block; height: 2.25rem; }
+.passage sup.vn { font-family: var(--font-display); font-size: .62em; color: var(--muted); font-weight: 600; margin-right: 1px; }
+.text-in {
+  font: inherit; color: var(--ink); background: transparent; border: none; border-bottom: 2px solid var(--muted);
+  padding: 0 2px; margin: 0 1px; height: 1.7rem; line-height: 1.7rem; border-radius: 3px 3px 0 0; min-width: 2ch;
+  vertical-align: baseline;
+}
+.text-in::placeholder { color: var(--muted); opacity: .75; letter-spacing: .06em; }
+.text-in:focus { outline: none; background: var(--mark); border-bottom-color: var(--ink); }
+.text-in.wrong { border-bottom-color: var(--bad); color: var(--bad); }
+.text-in.shake { animation: shake .3s; }
+@keyframes shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.solved { border-bottom: 2px solid var(--good); color: var(--good); }
+.solved.revealed { border-bottom-color: var(--warn); color: var(--warn); }
+.solved.pop { animation: pop .25s; }
+@keyframes pop { 50% { background: var(--mark); } }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.hint { color: var(--muted); font-size: .85rem; margin: 10px 0 0; }
+kbd { font-family: var(--font-display); font-size: .8em; border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 4px; padding: 0 5px; background: var(--paper); }
+
+.overlay {
+  position: absolute; inset: 0; background: color-mix(in srgb, var(--card) 88%, transparent);
+  backdrop-filter: blur(2px); border-radius: var(--radius); display: grid; place-items: center; padding: 20px;
+}
+.overlay[hidden] { display: none; }
+.panel { text-align: center; display: grid; gap: 10px; justify-items: center; max-width: 380px; }
+.panel h2 { margin: 0; font-size: 1.8rem; font-weight: 800; letter-spacing: -.02em; text-wrap: balance; }
+.panel p { margin: 0; color: var(--muted); }
+.stars { display: flex; gap: 6px; }
+.stars svg { width: 34px; height: 34px; }
+.stars .on { fill: var(--mark); stroke: var(--warn); stroke-width: 1.5; }
+.stars .off { fill: none; stroke: var(--rule); stroke-width: 1.5; }
+.summary { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .92rem; }
+.summary td, .summary th { padding: 4px 6px; border-bottom: 1px solid var(--rule); text-align: right; }
+.summary th:first-child, .summary td:first-child { text-align: left; }
+
+dialog {
+  border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card); color: var(--ink);
+  width: min(640px, calc(100% - 32px)); padding: 22px;
+}
+dialog::backdrop { background: rgba(10, 12, 20, .45); }
+dialog h2 { margin: 0 0 12px; font-size: 1.35rem; font-weight: 800; }
+.field { display: grid; gap: 6px; margin-bottom: 14px; }
+.field label { font-weight: 600; font-size: .9rem; }
+.field input, textarea {
+  font: inherit; color: var(--ink); background: var(--paper); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px;
+}
+textarea { font-family: var(--font-body); min-height: 200px; resize: vertical; line-height: 1.6; }
+.recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.recent .btn { font-weight: 400; font-size: .85rem; padding: 5px 12px; }
+.dlg-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.err { color: var(--bad); font-size: .88rem; min-height: 1.2em; margin: 0 0 8px; }
+
+@media (max-width: 480px) {
+  h1 { font-size: 2.1rem; }
+  .card { padding: 18px 16px 20px; }
+  .passage { font-size: 1.08rem; line-height: 2.1rem; }
+  .passage .para { height: 2.1rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Hidden <span class="hid">Word</span></h1>
+      <p class="tag">“Thy word have I hid in mine heart.” Psalm 119:11</p>
+    </div>
+    <button class="btn" id="editBtn" type="button">Change passage</button>
+  </header>
+
+  <div class="controls">
+    <div class="seg" role="radiogroup" aria-label="Mode">
+      <label><input type="radio" name="mode" id="modePractice" value="practice" checked><span>Practice</span></label>
+      <label><input type="radio" name="mode" id="modeGame" value="game"><span>Game</span></label>
+    </div>
+    <div class="seg" role="radiogroup" aria-label="Hint style">
+      <label><input type="radio" name="style" id="styleLetter" value="letter"><span>First letter</span></label>
+      <label><input type="radio" name="style" id="styleBlank" value="blank" checked><span>Full blank</span></label>
+    </div>
+    <label class="toggle" for="filler">
+      <input type="checkbox" id="filler" role="switch">
+      <span class="track" aria-hidden="true"></span>
+      <span>Hide filler words <small>(the, and, of…)</small></span>
+    </label>
+  </div>
+
+  <div class="subbar" id="practiceBar">
+    <div class="slider">
+      <label for="pct">Words hidden</label>
+      <input type="range" id="pct" min="10" max="100" step="10" value="40">
+      <output id="pctOut" for="pct">40%</output>
+    </div>
+    <button class="btn" id="reshuffle" type="button">New blanks</button>
+  </div>
+
+  <div class="subbar" id="gameBar" hidden>
+    <div class="levels" id="levels"></div>
+    <div class="hearts" id="hearts" aria-label="Hearts left"></div>
+  </div>
+
+  <section class="card" aria-live="polite">
+    <div class="card-head">
+      <div class="ref" id="ref"></div>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="bar"><i id="barFill"></i></div>
+    <div class="passage" id="passage"></div>
+    <div class="actions">
+      <button class="btn" id="revealOne" type="button">Reveal word</button>
+      <button class="btn" id="revealAll" type="button">Show all</button>
+      <button class="btn" id="resetBtn" type="button">Start over</button>
+    </div>
+    <p class="hint">Type each missing word. Correct words lock in on their own. <kbd>Space</kbd> or <kbd>Enter</kbd> checks a word, <kbd>?</kbd> reveals it. Capitals and punctuation don’t count.</p>
+    <div class="overlay" id="overlay" hidden><div class="panel" id="panel"></div></div>
+  </section>
+  <footer class="credit">
+    <span class="mark" aria-hidden="true"></span>
+    <p>Made by <strong>Noah Lawler</strong>, Lititz Christian School ’22</p>
+  </footer>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgTitle">
+  <form id="dlgForm" method="dialog">
+    <h2 id="dlgTitle">Change passage</h2>
+    <div class="field">
+      <label for="refIn">Reference (optional)</label>
+      <input id="refIn" type="text" placeholder="Philippians 4:4-7" autocomplete="off">
+    </div>
+    <div class="field">
+      <label for="textIn">Passage text</label>
+      <textarea id="textIn" placeholder="Paste the verses you want to memorize. Verse numbers are fine, they stay visible."></textarea>
+    </div>
+    <div id="recentWrap" hidden>
+      <div class="field" style="margin-bottom:6px"><label>Recent passages</label></div>
+      <div class="recent" id="recent"></div>
+    </div>
+    <p class="err" id="dlgErr"></p>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="dlgCancel">Cancel</button>
+      <button class="btn primary" type="submit" id="dlgSave">Use this passage</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(function () {
+  "use strict";
+
+  const EXAMPLE = {
+    ref: "Philippians 4:4-7 (WEB)",
+    text: "4 Rejoice in the Lord always! Again I will say, “Rejoice!” 5 Let your gentleness be known to all men. The Lord is at hand. 6 In nothing be anxious, but in everything, by prayer and petition with thanksgiving, let your requests be made known to God. 7 And the peace of God, which surpasses all understanding, will guard your hearts and your thoughts in Christ Jesus."
+  };
+  const STOP = new Set("a an the and or but nor so yet for of in on at to by as is am are was were be been it its this that these those i me my we us our you your he him his she her they them their will shall do does did not no".split(" "));
+  const LEVELS = [20, 40, 60, 80, 100];
+  const STORE = "hiddenword.v1";
+
+  const $ = (id) => document.getElementById(id);
+  const el = {
+    passage: $("passage"), ref: $("ref"), count: $("count"), bar: $("barFill"),
+    pct: $("pct"), pctOut: $("pctOut"), practiceBar: $("practiceBar"), gameBar: $("gameBar"),
+    levels: $("levels"), hearts: $("hearts"), overlay: $("overlay"), panel: $("panel"),
+    revealOne: $("revealOne"), revealAll: $("revealAll"), resetBtn: $("resetBtn")
+  };
+
+  const S = {
+    ref: EXAMPLE.ref, text: EXAMPLE.text, mode: "practice", style: "blank", pct: 40, filler: false,
+    tokens: [], order: [], hidden: new Set(), solved: new Map(),
+    level: 0, hearts: 3, maxHearts: 3, mistakes: 0, reveals: 0,
+    levelStart: 0, results: [], lastFocus: -1, locked: false
+  };
+
+  // ---------- storage (best effort) ----------
+  function load() {
+    try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch (e) { return {}; }
+  }
+  function save(patch) {
+    try { localStorage.setItem(STORE, JSON.stringify(Object.assign(load(), patch))); } catch (e) {}
+  }
+
+  // ---------- text handling ----------
+  const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function tokenize(text) {
+    const flat = text.replace(/\r/g, "").replace(/\n\s*\n+/g, " ¶ ").replace(/\s+/g, " ").trim();
+    return flat.split(" ").filter(Boolean).map((raw) => {
+      if (raw === "¶") return { para: true };
+      const m = raw.match(/^([^\p{L}\p{N}]*)(.*?)([^\p{L}\p{N}]*)$/u);
+      const core = m[2];
+      const n = norm(core);
+      const isNum = /^\d+[a-z]?$/i.test(core);
+      return { raw, pre: m[1], core, post: m[3], n, num: isNum, word: core.length > 0 && !isNum && n.length > 0, stop: STOP.has(n) };
+    });
+  }
+
+  function shuffle(a) {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+
+  // Priority order for hiding: spaced-out content words first, then the rest, then small words.
+  // Taking the first k of this order means harder settings always hide a superset of easier ones.
+  function buildOrder(tokens) {
+    const words = tokens.map((t, i) => (t.word ? i : -1)).filter((i) => i >= 0);
+    const pos = new Map(words.map((ti, p) => [ti, p]));
+    const content = shuffle(words.filter((i) => !tokens[i].stop));
+    const small = shuffle(words.filter((i) => tokens[i].stop));
+    const takenPos = new Set();
+    const first = [], second = [];
+    for (const i of content) {
+      const p = pos.get(i);
+      if (!takenPos.has(p - 1) && !takenPos.has(p + 1)) { first.push(i); takenPos.add(p); }
+      else second.push(i);
+    }
+    if (!S.filler && first.length + second.length > 0) return first.concat(second);
+    return first.concat(second, small);
+  }
+
+  function hideCount(pct) {
+    const n = S.order.length;
+    if (pct >= 100) return n;
+    return Math.max(1, Math.round((pct / 100) * n));
+  }
+
+  function setHidden(pct) {
+    S.hidden = new Set(S.order.slice(0, hideCount(pct)));
+    for (const k of [...S.solved.keys()]) if (!S.hidden.has(k)) S.solved.delete(k);
+  }
+
+  // ---------- rendering ----------
+  function inputHTML(i) {
+    const t = S.tokens[i];
+    const len = Math.max(2, t.core.length);
+    const ph = S.style === "letter" ? t.core[0] : "";
+    return `<input class="text-in" data-i="${i}" aria-label="Missing word ${i + 1}" style="width:calc(${len}ch + .5em)" placeholder="${esc(ph)}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" enterkeyhint="next">`;
+  }
+  function solvedHTML(i, kind, pop) {
+    return `<span class="solved ${kind}${pop ? " pop" : ""}" data-s="${i}">${esc(S.tokens[i].core)}</span>`;
+  }
+
+  function render() {
+    const parts = [];
+    S.tokens.forEach((t, i) => {
+      if (t.para) { parts.push('<span class="para"></span>'); return; }
+      if (t.num) { parts.push(`${esc(t.pre)}<sup class="vn">${esc(t.core)}</sup>${esc(t.post)}`); return; }
+      if (S.hidden.has(i)) {
+        const kind = S.solved.get(i);
+        parts.push(esc(t.pre) + (kind ? solvedHTML(i, kind) : inputHTML(i)) + esc(t.post));
+      } else parts.push(esc(t.raw));
+    });
+    el.passage.innerHTML = parts.join(" ").replace(/ <span class="para"><\/span> /g, '<span class="para"></span>');
+    el.ref.textContent = S.ref || "Your passage";
+    updateStatus();
+  }
+
+  function updateStatus() {
+    const total = S.hidden.size, done = S.solved.size;
+    el.count.textContent = `${done} of ${total} words`;
+    el.bar.style.width = total ? (100 * done / total) + "%" : "0";
+    el.pctOut.textContent = S.pct + "%";
+    if (S.mode === "game") renderGameBar();
+  }
+
+  const HEART = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="CLS" d="M12 21s-7.5-4.6-9.6-9.2C.9 8.3 3 4.5 6.7 4.5c2.2 0 3.6 1.2 5.3 3.1 1.7-1.9 3.1-3.1 5.3-3.1 3.7 0 5.8 3.8 4.3 7.3C19.5 16.4 12 21 12 21z"/></svg>';
+  const STAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="CLS" d="M12 2.8l2.8 5.9 6.4.8-4.7 4.4 1.2 6.3L12 17.1l-5.7 3.1 1.2-6.3-4.7-4.4 6.4-.8z"/></svg>';
+
+  function renderGameBar() {
+    el.levels.innerHTML = `<span class="lbl">Level ${S.level + 1} of ${LEVELS.length}</span>` +
+      LEVELS.map((_, k) => `<span class="lv ${k < S.level ? "done" : k === S.level ? "now" : ""}" title="${LEVELS[k]}% hidden"></span>`).join("");
+    let h = "";
+    for (let k = 0; k < S.maxHearts; k++) h += HEART.replace("CLS", k < S.hearts ? "on" : "off");
+    el.hearts.innerHTML = h;
+    el.hearts.setAttribute("aria-label", `${S.hearts} of ${S.maxHearts} hearts left`);
+  }
+
+  // ---------- interaction ----------
+  function inputs() { return [...el.passage.querySelectorAll(".text-in")]; }
+
+  function focusNext(fromIdx, dir) {
+    const list = inputs();
+    if (!list.length) return;
+    const d = dir || 1;
+    const sorted = d > 0 ? list : list.slice().reverse();
+    const next = sorted.find((x) => d > 0 ? +x.dataset.i > fromIdx : +x.dataset.i < fromIdx) || (d > 0 ? list[0] : null);
+    if (next) next.focus({ preventScroll: false });
+  }
+
+  function matches(val, t) {
+    const n = norm(val);
+    if (!n) return false;
+    if (n === t.n) return true;
+    return S.style === "letter" && t.n.length > 1 && n === t.n.slice(1);
+  }
+
+  function solve(i, kind) {
+    if (S.solved.has(i) || S.locked) return;
+    S.solved.set(i, kind);
+    const inp = el.passage.querySelector(`.text-in[data-i="${i}"]`);
+    if (inp) {
+      const span = document.createElement("span");
+      span.innerHTML = solvedHTML(i, kind, true);
+      inp.replaceWith(span.firstChild);
+    }
+    updateStatus();
+    if (S.solved.size === S.hidden.size) finishRound();
+    else focusNext(i, 1);
+  }
+
+  function miss(inp) {
+    const i = +inp.dataset.i;
+    S.mistakes++;
+    inp.classList.add("wrong");
+    inp.classList.remove("shake"); void inp.offsetWidth; inp.classList.add("shake");
+    inp.select();
+    if (S.mode === "game") loseHeart();
+  }
+
+  function reveal(i) {
+    if (i < 0 || S.solved.has(i) || !S.hidden.has(i) || S.locked) return;
+    S.reveals++;
+    solve(i, "revealed");
+    if (S.mode === "game" && S.solved.size < S.hidden.size) loseHeart();
+  }
+
+  function loseHeart() {
+    S.hearts = Math.max(0, S.hearts - 1);
+    renderGameBar();
+    if (S.hearts === 0) failLevel();
+  }
+
+  el.passage.addEventListener("input", (e) => {
+    const inp = e.target.closest(".text-in");
+    if (!inp) return;
+    const i = +inp.dataset.i;
+    if (inp.value.includes("?")) { inp.value = inp.value.replace(/\?/g, ""); reveal(i); return; }
+    inp.classList.remove("wrong");
+    if (matches(inp.value, S.tokens[i])) solve(i, "typed");
+  });
+
+  el.passage.addEventListener("keydown", (e) => {
+    const inp = e.target.closest(".text-in");
+    if (!inp) return;
+    const i = +inp.dataset.i;
+    if (e.key === " " || e.key === "Enter") {
+      e.preventDefault();
+      if (!inp.value.trim()) { focusNext(i, 1); return; }
+      if (matches(inp.value, S.tokens[i])) solve(i, "typed"); else miss(inp);
+    } else if (e.key === "Backspace" && inp.value === "") {
+      e.preventDefault(); focusNext(i, -1);
+    }
+  });
+
+  el.passage.addEventListener("focusin", (e) => {
+    const inp = e.target.closest(".text-in");
+    if (inp) S.lastFocus = +inp.dataset.i;
+  });
+  el.passage.addEventListener("focusout", (e) => {
+    const inp = e.target.closest(".text-in");
+    if (inp && inp.value.trim() && !matches(inp.value, S.tokens[+inp.dataset.i])) inp.classList.add("wrong");
+  });
+
+  el.revealOne.addEventListener("click", () => {
+    let i = S.lastFocus;
+    if (!S.hidden.has(i) || S.solved.has(i)) { const first = inputs()[0]; i = first ? +first.dataset.i : -1; }
+    reveal(i);
+  });
+  el.revealAll.addEventListener("click", () => {
+    if (S.mode === "game") { S.hearts = 0; renderGameBar(); failLevel(true); return; }
+    for (const i of S.hidden) if (!S.solved.has(i)) S.solved.set(i, "revealed");
+    render(); finishRound();
+  });
+  el.resetBtn.addEventListener("click", () => {
+    if (S.mode === "game") startGame(); else startPractice(false);
+  });
+
+  // ---------- practice ----------
+  function startPractice(newOrder) {
+    S.mode = "practice"; S.locked = false;
+    if (newOrder || !S.order.length) S.order = buildOrder(S.tokens);
+    S.solved.clear(); S.mistakes = 0; S.reveals = 0;
+    setHidden(S.pct);
+    hideOverlay(); syncBars(); render();
+    el.revealAll.textContent = "Show all";
+  }
+
+  el.pct.addEventListener("input", () => {
+    S.pct = +el.pct.value; save({ pct: S.pct });
+    setHidden(S.pct); hideOverlay(); S.locked = false; render();
+  });
+  $("reshuffle").addEventListener("click", () => startPractice(true));
+
+  // ---------- game ----------
+  function startGame() {
+    S.mode = "game";
+    S.order = buildOrder(S.tokens);
+    S.results = []; S.level = 0;
+    syncBars(); startLevel();
+    el.revealAll.textContent = "Give up level";
+  }
+  function startLevel() {
+    S.locked = false;
+    const peek = document.getElementById("peekBar"); if (peek) peek.remove();
+    S.solved.clear(); S.mistakes = 0; S.reveals = 0;
+    setHidden(LEVELS[S.level]);
+    S.maxHearts = Math.max(3, Math.ceil(S.hidden.size * 0.12));
+    S.hearts = S.maxHearts;
+    S.levelStart = performance.now();
+    hideOverlay(); render();
+    const first = inputs()[0]; if (first) first.focus();
+  }
+  function stars(mistakes, reveals, total) {
+    const slips = mistakes + reveals;
+    if (slips === 0) return 3;
+    if (slips <= Math.max(1, Math.round(total * 0.1))) return 2;
+    return 1;
+  }
+  function starRow(n) {
+    let s = ""; for (let k = 0; k < 3; k++) s += STAR.replace("CLS", k < n ? "on" : "off");
+    return `<div class="stars" aria-label="${n} of 3 stars">${s}</div>`;
+  }
+  const fmtTime = (ms) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+  function finishRound() {
+    S.locked = true;
+    if (S.mode === "practice") {
+      const typed = [...S.solved.values()].filter((k) => k === "typed").length;
+      const canHarder = S.pct < 100;
+      showOverlay(`
+        <h2>Passage complete</h2>
+        <p>${typed} of ${S.hidden.size} words from memory${S.mistakes ? `, ${S.mistakes} wrong ${S.mistakes === 1 ? "try" : "tries"}` : ""}.</p>
+        <div class="actions" style="justify-content:center">
+          <button class="btn" data-act="again" type="button">Again with new blanks</button>
+          ${canHarder ? `<button class="btn primary" data-act="harder" type="button">Hide more (${Math.min(100, S.pct + 20)}%)</button>` : ""}
+        </div>`);
+      return;
+    }
+    const total = S.hidden.size, time = performance.now() - S.levelStart;
+    const st = stars(S.mistakes, S.reveals, total);
+    S.results[S.level] = { pct: LEVELS[S.level], total, mistakes: S.mistakes, reveals: S.reveals, time, stars: st };
+    if (S.level < LEVELS.length - 1) {
+      showOverlay(`
+        <h2>Level ${S.level + 1} cleared</h2>
+        ${starRow(st)}
+        <p>${S.mistakes} wrong, ${S.reveals} revealed, ${fmtTime(time)}. Next level hides ${LEVELS[S.level + 1]}% of the words.</p>
+        <div class="actions" style="justify-content:center">
+          <button class="btn" data-act="retry" type="button">Replay level</button>
+          <button class="btn primary" data-act="next" type="button">Next level</button>
+        </div>`);
+    } else {
+      const totalStars = S.results.reduce((a, r) => a + r.stars, 0);
+      const totalTime = S.results.reduce((a, r) => a + r.time, 0);
+      const rows = S.results.map((r, k) => `<tr><td>Level ${k + 1} (${r.pct}%)</td><td>${r.mistakes}</td><td>${r.reveals}</td><td>${fmtTime(r.time)}</td><td>${r.stars}/3</td></tr>`).join("");
+      showOverlay(`
+        <h2>Passage memorized</h2>
+        <p>${totalStars} of ${LEVELS.length * 3} stars in ${fmtTime(totalTime)}.</p>
+        <table class="summary"><thead><tr><th>Level</th><th>Wrong</th><th>Revealed</th><th>Time</th><th>Stars</th></tr></thead><tbody>${rows}</tbody></table>
+        <div class="actions" style="justify-content:center">
+          <button class="btn" data-act="practice" type="button">Back to practice</button>
+          <button class="btn primary" data-act="newgame" type="button">Play again</button>
+        </div>`);
+    }
+  }
+
+  function failLevel(gaveUp) {
+    S.locked = true;
+    for (const i of S.hidden) if (!S.solved.has(i)) S.solved.set(i, "revealed");
+    render();
+    showOverlay(`
+      <h2>${gaveUp ? "Level skipped" : "Out of hearts"}</h2>
+      <p>The full passage is showing behind this box. Read it through once, then try level ${S.level + 1} again.</p>
+      <div class="actions" style="justify-content:center">
+        <button class="btn" data-act="peek" type="button">Read the passage</button>
+        <button class="btn primary" data-act="retry" type="button">Retry level</button>
+      </div>`);
+  }
+
+  function showOverlay(html) { el.panel.innerHTML = html; el.overlay.hidden = false; const b = el.panel.querySelector(".primary"); if (b) b.focus(); }
+  function hideOverlay() { el.overlay.hidden = true; }
+
+  el.panel.addEventListener("click", (e) => {
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (!act) return;
+    if (act === "again") startPractice(true);
+    else if (act === "harder") { S.pct = Math.min(100, S.pct + 20); el.pct.value = S.pct; save({ pct: S.pct }); startPractice(false); }
+    else if (act === "next") { S.level++; startLevel(); }
+    else if (act === "retry") startLevel();
+    else if (act === "newgame") startGame();
+    else if (act === "practice") { $("modePractice").checked = true; startPractice(true); }
+    else if (act === "peek") {
+      hideOverlay();
+      const back = document.createElement("div");
+      back.className = "actions"; back.id = "peekBar";
+      back.innerHTML = '<button class="btn primary" type="button">Retry level</button>';
+      back.firstChild.addEventListener("click", () => { back.remove(); startLevel(); });
+      el.passage.after(back);
+      back.firstChild.focus();
+    }
+  });
+
+  // ---------- mode / style ----------
+  function syncBars() {
+    el.practiceBar.hidden = S.mode !== "practice";
+    el.gameBar.hidden = S.mode !== "game";
+    const peek = document.getElementById("peekBar"); if (peek) peek.remove();
+  }
+  document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener("change", () => {
+    if (r.value === "game") startGame(); else startPractice(true);
+    save({ mode: r.value });
+  }));
+  document.querySelectorAll('input[name="style"]').forEach((r) => r.addEventListener("change", () => {
+    S.style = r.value; save({ style: S.style });
+    // keep progress, just redraw the remaining blanks
+    const typed = new Map(inputs().map((x) => [x.dataset.i, x.value]));
+    render();
+    inputs().forEach((x) => { if (typed.has(x.dataset.i)) x.value = typed.get(x.dataset.i); });
+  }));
+
+  $("filler").addEventListener("change", (e) => {
+    S.filler = e.target.checked; save({ filler: S.filler });
+    if (S.mode === "game") startGame(); else startPractice(true);
+  });
+
+  // ---------- passage dialog ----------
+  const dlg = $("dlg");
+  function openDialog() {
+    $("refIn").value = S.ref; $("textIn").value = S.text; $("dlgErr").textContent = "";
+    const recent = load().recent || [];
+    $("recentWrap").hidden = recent.length === 0;
+    $("recent").innerHTML = recent.map((r, k) => `<button class="btn" type="button" data-k="${k}">${esc(r.ref || r.text.slice(0, 28) + "…")}</button>`).join("");
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+    $("textIn").focus();
+  }
+  function closeDialog() { if (dlg.close) dlg.close(); else dlg.removeAttribute("open"); }
+  $("editBtn").addEventListener("click", openDialog);
+  $("dlgCancel").addEventListener("click", closeDialog);
+  $("recent").addEventListener("click", (e) => {
+    const k = e.target.closest("[data-k]")?.dataset.k;
+    if (k == null) return;
+    const r = (load().recent || [])[+k];
+    if (r) { $("refIn").value = r.ref; $("textIn").value = r.text; }
+  });
+  $("dlgForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const text = $("textIn").value.trim();
+    const ref = $("refIn").value.trim();
+    const toks = tokenize(text);
+    if (toks.filter((t) => t.word).length < 3) { $("dlgErr").textContent = "Paste a passage with at least a few words."; return; }
+    setPassage(ref, text);
+    const recent = (load().recent || []).filter((r) => r.text !== text);
+    recent.unshift({ ref, text });
+    save({ recent: recent.slice(0, 8), current: { ref, text } });
+    closeDialog();
+  });
+
+  function setPassage(ref, text) {
+    S.ref = ref; S.text = text; S.tokens = tokenize(text); S.order = [];
+    if (S.mode === "game") startGame(); else startPractice(true);
+  }
+
+  // ---------- boot ----------
+  const saved = load();
+  if (saved.current && saved.current.text) { S.ref = saved.current.ref; S.text = saved.current.text; }
+  if (saved.style === "letter") { S.style = "letter"; $("styleLetter").checked = true; }
+  if (saved.filler === true) { S.filler = true; $("filler").checked = true; }
+  if (saved.pct) { S.pct = saved.pct; el.pct.value = S.pct; }
+  S.tokens = tokenize(S.text);
+  if (saved.mode === "game") { $("modeGame").checked = true; startGame(); }
+  else startPractice(true);
+})();
+</script>
+</body>
+</html>
