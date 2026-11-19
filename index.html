@@ -227,7 +227,7 @@ textarea { font-family: var(--font-body); min-height: 200px; resize: vertical; l
       <button class="btn" id="revealAll" type="button">Show all</button>
       <button class="btn" id="resetBtn" type="button">Start over</button>
     </div>
-    <p class="hint">Type each missing word. Correct words lock in on their own. <kbd>Space</kbd> or <kbd>Enter</kbd> checks a word, <kbd>?</kbd> reveals it. Capitals and punctuation don’t count.</p>
+    <p class="hint">Type a missing word, then press <kbd>Space</kbd> or <kbd>Enter</kbd> to check it. Wrong answers count, so commit before you check. <kbd>?</kbd> reveals a word, and pressing <kbd>Space</kbd> on an empty blank skips it. Capitals and punctuation don’t count.</p>
     <div class="overlay" id="overlay" hidden><div class="panel" id="panel"></div></div>
   </section>
   <footer class="credit">
@@ -451,8 +451,15 @@ textarea { font-family: var(--font-body); min-height: 200px; resize: vertical; l
     const i = +inp.dataset.i;
     if (inp.value.includes("?")) { inp.value = inp.value.replace(/\?/g, ""); reveal(i); return; }
     inp.classList.remove("wrong");
-    if (matches(inp.value, S.tokens[i])) solve(i, "typed");
+    // Phone keyboards often don't report Space as a key press, so treat a typed space as "check".
+    if (/\s/.test(inp.value)) { inp.value = inp.value.replace(/\s+/g, ""); submit(inp); }
   });
+
+  function submit(inp) {
+    const i = +inp.dataset.i;
+    if (!inp.value.trim()) { focusNext(i, 1); return; }
+    if (matches(inp.value, S.tokens[i])) solve(i, "typed"); else miss(inp);
+  }
 
   el.passage.addEventListener("keydown", (e) => {
     const inp = e.target.closest(".text-in");
@@ -460,8 +467,7 @@ textarea { font-family: var(--font-body); min-height: 200px; resize: vertical; l
     const i = +inp.dataset.i;
     if (e.key === " " || e.key === "Enter") {
       e.preventDefault();
-      if (!inp.value.trim()) { focusNext(i, 1); return; }
-      if (matches(inp.value, S.tokens[i])) solve(i, "typed"); else miss(inp);
+      submit(inp);
     } else if (e.key === "Backspace" && inp.value === "") {
       e.preventDefault(); focusNext(i, -1);
     }
@@ -470,10 +476,6 @@ textarea { font-family: var(--font-body); min-height: 200px; resize: vertical; l
   el.passage.addEventListener("focusin", (e) => {
     const inp = e.target.closest(".text-in");
     if (inp) S.lastFocus = +inp.dataset.i;
-  });
-  el.passage.addEventListener("focusout", (e) => {
-    const inp = e.target.closest(".text-in");
-    if (inp && inp.value.trim() && !matches(inp.value, S.tokens[+inp.dataset.i])) inp.classList.add("wrong");
   });
 
   el.revealOne.addEventListener("click", () => {
